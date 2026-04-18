@@ -16,8 +16,12 @@ find_package(geometry_msgs REQUIRED)
 add_executable(move_robot_server src/move_robot_server.cpp)
 ament_target_dependencies(move_robot_server rclcpp rclcpp_action robot_interfaces nav_msgs geometry_msgs)
 
+add_executable(move_robot_client src/move_robot_client.cpp)
+ament_target_dependencies(move_robot_client rclcpp rclcpp_action robot_interfaces)
+
 install(TARGETS
   move_robot_server
+  move_robot_client
   DESTINATION lib/${PROJECT_NAME}
 )
 
