@@ -2,3 +2,8 @@ build/
 install/
 log/
 src/bme_gazebo_sensors/
+*.db
+*.db-shm
+*.db-wal
+.vscode/
+src/.vscode/
