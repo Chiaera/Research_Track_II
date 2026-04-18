@@ -78,11 +78,11 @@ private:
         while (rclcpp::ok()) {
             
             //Check if cancel request
-            if (goal_handle->is_canceling()) {
+            if (goal_handle->is_canceling()) { //reach the position the exact moment the cancel is sent
                 result->position = position_;
                 if (goal_position == position_) {
-                   result->message = "Success";
-                   goal_handle->succeed(result); 
+                    result->message = "Success";
+                    goal_handle->succeed(result); 
                 }
                 else {
                     result->message = "Canceled";
@@ -94,6 +94,11 @@ private:
             //Check remains ditances
             double diff = goal_position - position_;
             if (std::abs(diff) < 0.1) {
+                //stop robot
+                geometry_msgs::msg::Twist msg;
+                msg.linear.x = 0;
+                vel_publisher_->publish(msg);
+
                 result->position = position_;
                 result->message = "Success";
                 goal_handle->succeed(result);
@@ -105,7 +110,7 @@ private:
             double cmd_vel = Kp*diff;
             if (cmd_vel > 0.5) cmd_vel = 0.5;
             if (cmd_vel < -0.5) cmd_vel = -0.5;
-            //publsh velocity
+            //publish velocity
             geometry_msgs::msg::Twist msg;
             msg.linear.x = cmd_vel;
             vel_publisher_->publish(msg);
