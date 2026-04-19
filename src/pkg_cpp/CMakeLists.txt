@@ -12,15 +12,25 @@ find_package(rclcpp_action REQUIRED)
 find_package(robot_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(rclcpp_components REQUIRED)
 
-add_executable(move_robot_server src/move_robot_server.cpp)
-ament_target_dependencies(move_robot_server rclcpp rclcpp_action robot_interfaces nav_msgs geometry_msgs)
+include_directories(include)
+
+add_library(move_robot_server SHARED src/move_robot_server.cpp)
+ament_target_dependencies(move_robot_server rclcpp rclcpp_components rclcpp_action robot_interfaces nav_msgs geometry_msgs)
+rclcpp_components_register_nodes(move_robot_server "robot_namespace::MoveRobotServerNode")
 
 add_executable(move_robot_client src/move_robot_client.cpp)
 ament_target_dependencies(move_robot_client rclcpp rclcpp_action robot_interfaces)
 
 install(TARGETS
   move_robot_server
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib
+)
+
+install(TARGETS
   move_robot_client
   DESTINATION lib/${PROJECT_NAME}
 )

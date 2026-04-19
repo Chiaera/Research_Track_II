@@ -1,7 +1,0 @@
-<launch>
-    <node pkg="pkg_cpp" exec="move_robot_server" />
-
-    <include file="$(find-pkg-share bme_gazebo_sensors)/launch/spawn_robot_ex.launch.py" />
-
-    <node pkg="pkg_cpp" exec="move_robot_client" />
-</launch>
