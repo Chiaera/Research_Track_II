@@ -22,18 +22,16 @@ def generate_launch_description():
                 package="pkg_cpp",
                 plugin="robot_namespace::MoveRobotServerNode",
                 name="move_robot_server"
+            ),
+            ComposableNode(
+                package="pkg_cpp",
+                plugin="robot_namespace::MoveRobotClientNode",
+                name="move_robot_client"
             )
         ]
     )
 
-    move_robot_client = Node(
-        package="pkg_cpp",
-        executable="move_robot_client",
-        name="move_robot_client"
-    )
-
     ld.add_action(container)
-    ld.add_action(move_robot_client)
     ld.add_action(gazebo)
 
     return ld

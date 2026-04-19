@@ -20,19 +20,16 @@ add_library(move_robot_server SHARED src/move_robot_server.cpp)
 ament_target_dependencies(move_robot_server rclcpp rclcpp_components rclcpp_action robot_interfaces nav_msgs geometry_msgs)
 rclcpp_components_register_nodes(move_robot_server "robot_namespace::MoveRobotServerNode")
 
-add_executable(move_robot_client src/move_robot_client.cpp)
-ament_target_dependencies(move_robot_client rclcpp rclcpp_action robot_interfaces)
+add_library(move_robot_client SHARED src/move_robot_client.cpp)
+ament_target_dependencies(move_robot_client rclcpp rclcpp_components rclcpp_action robot_interfaces)
+rclcpp_components_register_nodes(move_robot_client "robot_namespace::MoveRobotClientNode")
 
 install(TARGETS
   move_robot_server
+  move_robot_client
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib
-)
-
-install(TARGETS
-  move_robot_client
-  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

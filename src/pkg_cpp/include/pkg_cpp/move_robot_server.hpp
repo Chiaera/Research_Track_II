@@ -122,6 +122,6 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_publisher_;
   std::shared_ptr<MoveRobotGoalHandle> goal_handle_;
 };
-} // namespace robot_namespace
+} //namespace robot_namespace
 
 #endif
