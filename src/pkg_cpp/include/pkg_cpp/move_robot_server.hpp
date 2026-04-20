@@ -2,7 +2,8 @@
 #define MOVE_ROBOT_SERVER_HPP
 
 #include "geometry_msgs/msg/twist.hpp"
-#include <geometry_msgs/msg/transform_stamped.hpp>
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "robot_interfaces/action/move_robot.hpp"
@@ -10,6 +11,7 @@
 #include "tf2/LinearMath/Quaternion.hpp"
 #include "tf2/LinearMath/Matrix3x3.hpp"
 #include "tf2_ros/transform_listener.hpp"
+#include "tf2_ros/transform_broadcaster.hpp"
 #include "tf2_ros/buffer.hpp"
 
 
@@ -33,6 +35,11 @@
 // 			float64 y 0
 // 			float64 z 0
 // 			float64 w 1
+
+//FRAMES
+//base_footprint --> base_link --> left_wheel
+//                             --> right wheel
+//                             --> scan link
 
 
 using MoveRobot = robot_interfaces::action::MoveRobot;
@@ -85,25 +92,28 @@ private:
     execute_goal(goal_handle);
   }
 
-  // TF callback - take position of the robot
-  void tf_callback(const tf2_msgs::msg::TFMessage::SharedPtr msg) {
-    if (msg->transforms.empty()) return; 
+  // ODOM callback - take position x of the robot
+  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+    geometry_msgs::msg::TransformStamped t;
 
-    const auto& t = msg->transforms[0].transform;
-    position_x_ = t.translation.x;
-    position_y_ = t.translation.y;
+    //assign header and child frame 
+    t.header.stamp = this->get_clock()->now();
+    t.header.frame_id = "odom";
+    t.child_frame_id = "base_footprint";
 
-    //transformation to Quaternion
-    tf2::Quaternion q(
-        t.rotation.x,
-        t.rotation.y,
-        t.rotation.z,
-        t.rotation.w
-    );
+    //Get /odom pose (position and orientation) to send a broadcast
+    t.transform.translation.x = msg->pose.pose.position.x;
+    t.transform.translation.y = msg->pose.pose.position.y;
+    t.transform.rotation.z = msg->pose.pose.orientation.z;
+    t.transform.rotation.w = msg->pose.pose.orientation.w;
 
-    double roll, pitch, yaw;
-    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-    position_theta_ = yaw;
+    t.transform.rotation.x = msg->pose.pose.orientation.x;
+    t.transform.rotation.y = msg->pose.pose.orientation.y;
+    t.transform.rotation.z = msg->pose.pose.orientation.z;
+    t.transform.rotation.w = msg->pose.pose.orientation.w;
+
+    //publish the transformation
+    tf_broadcaster_->sendTransform(t);
   }
 
   // EXECUTE goal
@@ -119,10 +129,34 @@ private:
 
     auto result = std::make_shared<MoveRobot::Result>();
     auto feedback = std::make_shared<MoveRobot::Feedback>();
-    rclcpp::Rate loop_rate(1.0);
+    rclcpp::Rate loop_rate(5.0);
 
     RCLCPP_INFO(this->get_logger(), "Execute goal");
     while (rclcpp::ok()) {
+      //get position ---
+    geometry_msgs::msg::TransformStamped transform;
+    try {
+        transform = tf_buffer_->lookupTransform("odom", "base_footprint", tf2::TimePointZero);
+        position_x_ = transform.transform.translation.x;
+        position_y_ = transform.transform.translation.y;
+    } catch (tf2::TransformException &ex) {RCLCPP_WARN(this->get_logger(), "TF could not transform: %s", ex.what());
+        loop_rate.sleep();
+        continue;
+    }
+
+    //transformation to Quaternion
+    tf2::Quaternion q(
+      transform.transform.rotation.x,
+      transform.transform.rotation.y,
+      transform.transform.rotation.z,
+      transform.transform.rotation.w
+    );
+    
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    position_theta_ = yaw;
+    //---------------------
+
       // Check if needs to preempt goal
       {
           std::lock_guard<std::mutex> lock(mutex_);
@@ -151,6 +185,9 @@ private:
       double diff_x = goal_position_x - position_x_;
       double diff_y = goal_position_y - position_y_;
       double diff_theta = goal_position_theta - position_theta_;
+      //angle normalization
+      while (diff_theta > M_PI) diff_theta -= 2*M_PI;
+      while (diff_theta < -M_PI) diff_theta += 2*M_PI;
       if ((std::abs(diff_x) < 0.1 && std::abs(diff_y) < 0.1 && std::abs(diff_theta) < 0.1)) {
         //stop robot
         geometry_msgs::msg::Twist msg;
@@ -168,30 +205,36 @@ private:
       }
 
       // VELOCITY ---
+      double dist = std::sqrt(diff_x*diff_x + diff_y*diff_y);
       double current_theta = std::atan2(diff_y, diff_x);
       double delta_theta = current_theta - position_theta_;
       //angle normalization
       while (delta_theta > M_PI) delta_theta -= 2*M_PI;
       while (delta_theta < -M_PI) delta_theta += 2*M_PI;
 
-      //check orientation
+      double delta_theta_final = goal_position_theta -position_theta_;
+      //angle normalization
+      while (delta_theta_final > M_PI) delta_theta_final -= 2*M_PI;
+      while (delta_theta_final < -M_PI) delta_theta_final += 2*M_PI;
+
       geometry_msgs::msg::Twist msg;
-      if(std::abs(delta_theta) > 0.2){
-        msg.linear.x = 0.0;
-        msg.linear.y = 0.0;
-        msg.angular.z = 0.5*delta_theta;
-      } else if (std::abs(diff_x) < 1){ //already in the same x
-        msg.linear.x = 0.0;
-        msg.linear.y = 0.5*diff_y;
-        msg.angular.z = 0.0;
-      } else if (std::abs(diff_y) < 1){ //already in the same y
-        msg.linear.x = 0.5*diff_x;
-        msg.linear.y = 0.0;
-        msg.angular.z = 0.0;
-      } else { //oblique moviment
-        msg.linear.x = 0.5*diff_x;
-        msg.linear.y = 0.5*diff_y;
-        msg.angular.z = 0.0;
+      if (dist > 0.1) { //if robot distant from target
+          if (std::abs(delta_theta) > 0.2) { //fix position
+              msg.angular.z = 0.5*delta_theta;
+              msg.linear.x = 0.0;
+          } 
+          else { //fix distance
+              msg.linear.x = 0.5*dist; 
+              msg.angular.z = 0.0;
+          }
+      } else { //reached position 
+          if (std::abs(delta_theta_final) > 0.05) { //check orientation
+              msg.linear.x = 0.0;
+              msg.angular.z = 0.4*delta_theta_final;
+          } else { //stop
+              msg.linear.x = 0.0;
+              msg.angular.z = 0.0;
+          }
       }
       vel_publisher_->publish(msg);
       //--------
@@ -209,17 +252,15 @@ private:
   double position_x_ = 0.0;
   double position_y_ = 0.0;
   double position_theta_ = 0.0;
-  double vel_x_ = 0.0;
-  double vel_y_ = 0.0;
-  double vel_z_ = 0.0;
   rclcpp_action::Server<MoveRobot>::SharedPtr move_robot_server_;
   rclcpp::CallbackGroup::SharedPtr cb_group_;
-  rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_subscriber_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscriber_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_publisher_;
   std::shared_ptr<MoveRobotGoalHandle> goal_handle_;
   std::mutex mutex_;
   rclcpp_action::GoalUUID preempted_goal_id_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
 };
 } //namespace robot_namespace
