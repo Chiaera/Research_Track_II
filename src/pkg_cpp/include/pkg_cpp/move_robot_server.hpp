@@ -2,11 +2,13 @@
 #define MOVE_ROBOT_SERVER_HPP
 
 #include "geometry_msgs/msg/twist.hpp"
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "robot_interfaces/action/move_robot.hpp"
 #include "tf2_msgs/msg/tf_message.hpp"
 #include "tf2/LinearMath/Quaternion.hpp"
+#include "tf2/LinearMath/Matrix3x3.hpp"
 #include "tf2_ros/transform_listener.hpp"
 #include "tf2_ros/buffer.hpp"
 
@@ -50,7 +52,7 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received a new goal");
 
     // Validate new goal
-    if ((goal->position < 0) || (goal->position > 100)) {
+    if ((goal->goal_position_x < 0) || (goal->goal_position_x > 100) || (goal->goal_position_y < 0) || (goal->goal_position_y > 100)) {
       RCLCPP_INFO(this->get_logger(), "Invalid position: reject goal");
       return rclcpp_action::GoalResponse::REJECT;
     }
@@ -85,9 +87,23 @@ private:
 
   // TF callback - take position of the robot
   void tf_callback(const tf2_msgs::msg::TFMessage::SharedPtr msg) {
+    if (msg->transforms.empty()) return; 
+
     const auto& t = msg->transforms[0].transform;
-    double x = t.translation.x;
-    position_ = x;
+    position_x_ = t.translation.x;
+    position_y_ = t.translation.y;
+
+    //transformation to Quaternion
+    tf2::Quaternion q(
+        t.rotation.x,
+        t.rotation.y,
+        t.rotation.z,
+        t.rotation.w
+    );
+
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    position_theta_ = yaw;
   }
 
   // EXECUTE goal
@@ -97,7 +113,9 @@ private:
       this->goal_handle_ = goal_handle;
     }
 
-    double goal_position = goal_handle->get_goal()->position;
+    double goal_position_x = goal_handle->get_goal()->goal_position_x;
+    double goal_position_y = goal_handle->get_goal()->goal_position_y;
+    double goal_position_theta = goal_handle->get_goal()->goal_position_theta;
 
     auto result = std::make_shared<MoveRobot::Result>();
     auto feedback = std::make_shared<MoveRobot::Feedback>();
@@ -109,7 +127,9 @@ private:
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 if (goal_handle->get_goal_id() == preempted_goal_id_) {
-                    result->position = position_;
+                    result->final_position_x = position_x_;
+                    result->final_position_y = position_y_;
+                    result->final_position_theta = position_theta_;
                     result->message = "Preempted by another goal";
                     goal_handle->abort(result);
                     return;
@@ -117,28 +137,31 @@ private:
             }
             
       // Check if cancel request
-      if (goal_handle->is_canceling()) { // reach the position the exact moment
-                                         // the cancel is sent
-        result->position = position_;
-        if (goal_position == position_) {
-          result->message = "Success";
-          goal_handle->succeed(result);
-        } else {
-          result->message = "Canceled";
-          goal_handle->canceled(result);
-        }
+      if (goal_handle->is_canceling()) { 
+        result->final_position_x = position_x_;
+        result->final_position_y = position_y_;
+        result->final_position_theta = position_theta_;
+        
+        result->message = "Canceled";
+        goal_handle->canceled(result);
         return;
       }
 
       // Check remains ditances
-      double diff = goal_position - position_;
-      if (std::abs(diff) < 0.1) {
-        // stop robot
+      double diff_x = goal_position_x - position_x_;
+      double diff_y = goal_position_y - position_y_;
+      double diff_theta = goal_position_theta - position_theta_;
+      if ((std::abs(diff_x) < 0.1 && std::abs(diff_y) < 0.1 && std::abs(diff_theta) < 0.1)) {
+        //stop robot
         geometry_msgs::msg::Twist msg;
         msg.linear.x = 0;
+        msg.linear.y = 0;
+        msg.angular.z = 0;
         vel_publisher_->publish(msg);
 
-        result->position = position_;
+        result->final_position_x = position_x_;
+        result->final_position_y = position_y_;
+        result->final_position_theta = position_theta_;
         result->message = "Success";
         goal_handle->succeed(result);
         return;
@@ -146,7 +169,7 @@ private:
 
       // Compute velocity
       double Kp = 0.5; // proportional gain
-      double cmd_vel = Kp * diff;
+      double cmd_vel = Kp * diff_x;
       if (cmd_vel > 0.5)
         cmd_vel = 0.5;
       if (cmd_vel < -0.5)
@@ -156,15 +179,19 @@ private:
       msg.linear.x = cmd_vel;
       vel_publisher_->publish(msg);
 
-      RCLCPP_INFO(this->get_logger(), "Robot position: %f", position_);
-      feedback->current_position = position_;
+      RCLCPP_INFO(this->get_logger(), "Robot position: (%f, %f) with rotation: %f", position_x_, position_y_, position_theta_);
+      feedback->current_position_x = position_x_;
+      feedback->current_position_y = position_y_;
+      feedback->current_position_theta = position_theta_;
       goal_handle->publish_feedback(feedback);
 
       loop_rate.sleep();
     }
   }
 
-  double position_ = 0.0;
+  double position_x_ = 0.0;
+  double position_y_ = 0.0;
+  double position_theta_ = 0.0;
   double vel_ = 0.0;
   rclcpp_action::Server<MoveRobot>::SharedPtr move_robot_server_;
   rclcpp::CallbackGroup::SharedPtr cb_group_;

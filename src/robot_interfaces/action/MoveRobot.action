@@ -6,7 +6,7 @@ float64 goal_position_theta
 #Result
 float64 final_position_x
 float64 final_position_y
-float64 finale_position_theta
+float64 final_position_theta
 string message
 ---
 #Feedback

@@ -7,7 +7,7 @@ namespace robot_namespace {
 
         RCLCPP_INFO(this->get_logger(), "Action client has been started");
 
-        send_goal(6);
+        send_goal(6, 3, 0);
     }
 }
 
