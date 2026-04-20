@@ -124,17 +124,17 @@ private:
     RCLCPP_INFO(this->get_logger(), "Execute goal");
     while (rclcpp::ok()) {
       // Check if needs to preempt goal
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                if (goal_handle->get_goal_id() == preempted_goal_id_) {
-                    result->final_position_x = position_x_;
-                    result->final_position_y = position_y_;
-                    result->final_position_theta = position_theta_;
-                    result->message = "Preempted by another goal";
-                    goal_handle->abort(result);
-                    return;
-                }
-            }
+      {
+          std::lock_guard<std::mutex> lock(mutex_);
+          if (goal_handle->get_goal_id() == preempted_goal_id_) {
+              result->final_position_x = position_x_;
+              result->final_position_y = position_y_;
+              result->final_position_theta = position_theta_;
+              result->message = "Preempted by another goal";
+              goal_handle->abort(result);
+              return;
+          }
+      }
             
       // Check if cancel request
       if (goal_handle->is_canceling()) { 
@@ -167,17 +167,34 @@ private:
         return;
       }
 
-      // Compute velocity
-      double Kp = 0.5; // proportional gain
-      double cmd_vel = Kp * diff_x;
-      if (cmd_vel > 0.5)
-        cmd_vel = 0.5;
-      if (cmd_vel < -0.5)
-        cmd_vel = -0.5;
-      // publish velocity
+      // VELOCITY ---
+      double current_theta = std::atan2(diff_y, diff_x);
+      double delta_theta = current_theta - position_theta_;
+      //angle normalization
+      while (delta_theta > M_PI) delta_theta -= 2*M_PI;
+      while (delta_theta < -M_PI) delta_theta += 2*M_PI;
+
+      //check orientation
       geometry_msgs::msg::Twist msg;
-      msg.linear.x = cmd_vel;
+      if(std::abs(delta_theta) > 0.2){
+        msg.linear.x = 0.0;
+        msg.linear.y = 0.0;
+        msg.angular.z = 0.5*delta_theta;
+      } else if (std::abs(diff_x) < 1){ //already in the same x
+        msg.linear.x = 0.0;
+        msg.linear.y = 0.5*diff_y;
+        msg.angular.z = 0.0;
+      } else if (std::abs(diff_y) < 1){ //already in the same y
+        msg.linear.x = 0.5*diff_x;
+        msg.linear.y = 0.0;
+        msg.angular.z = 0.0;
+      } else { //oblique moviment
+        msg.linear.x = 0.5*diff_x;
+        msg.linear.y = 0.5*diff_y;
+        msg.angular.z = 0.0;
+      }
       vel_publisher_->publish(msg);
+      //--------
 
       RCLCPP_INFO(this->get_logger(), "Robot position: (%f, %f) with rotation: %f", position_x_, position_y_, position_theta_);
       feedback->current_position_x = position_x_;
@@ -192,7 +209,9 @@ private:
   double position_x_ = 0.0;
   double position_y_ = 0.0;
   double position_theta_ = 0.0;
-  double vel_ = 0.0;
+  double vel_x_ = 0.0;
+  double vel_y_ = 0.0;
+  double vel_z_ = 0.0;
   rclcpp_action::Server<MoveRobot>::SharedPtr move_robot_server_;
   rclcpp::CallbackGroup::SharedPtr cb_group_;
   rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_subscriber_;
