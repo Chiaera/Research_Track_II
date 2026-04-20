@@ -1,9 +1,15 @@
 #Goal
-float64 position
+float64 goal_position_x
+float64 goal_position_y
+float64 goal_position_theta
 ---
 #Result
-float64 position
+float64 final_position_x
+float64 final_position_y
+float64 finale_position_theta
 string message
 ---
 #Feedback
-float64 current_position
+float64 current_position_x
+float64 current_position_y
+float64 current_position_theta

@@ -2,10 +2,36 @@
 #define MOVE_ROBOT_SERVER_HPP
 
 #include "geometry_msgs/msg/twist.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "robot_interfaces/action/move_robot.hpp"
+#include "tf2_msgs/msg/tf_message.hpp"
+#include "tf2/LinearMath/Quaternion.hpp"
+#include "tf2_ros/transform_listener.hpp"
+#include "tf2_ros/buffer.hpp"
+
+
+//ros2 interface show tf2_msgs/msg/TFMessage
+// geometry_msgs/TransformStamped[] transforms
+// 	#
+// 	#
+// 	std_msgs/Header header
+// 		builtin_interfaces/Time stamp
+// 			int32 sec
+// 			uint32 nanosec
+// 		string frame_id
+// 	string child_frame_id
+// 	Transform transform
+// 		Vector3 translation
+// 			float64 x
+// 			float64 y
+// 			float64 z
+// 		Quaternion rotation
+// 			float64 x 0
+// 			float64 y 0
+// 			float64 z 0
+// 			float64 w 1
+
 
 using MoveRobot = robot_interfaces::action::MoveRobot;
 using MoveRobotGoalHandle = rclcpp_action::ServerGoalHandle<MoveRobot>;
@@ -57,9 +83,10 @@ private:
     execute_goal(goal_handle);
   }
 
-  // ODOM callback - take position x of the robot
-  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
-    double x = msg->pose.pose.position.x;
+  // TF callback - take position of the robot
+  void tf_callback(const tf2_msgs::msg::TFMessage::SharedPtr msg) {
+    const auto& t = msg->transforms[0].transform;
+    double x = t.translation.x;
     position_ = x;
   }
 
@@ -141,11 +168,13 @@ private:
   double vel_ = 0.0;
   rclcpp_action::Server<MoveRobot>::SharedPtr move_robot_server_;
   rclcpp::CallbackGroup::SharedPtr cb_group_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscriber_;
+  rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_subscriber_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_publisher_;
   std::shared_ptr<MoveRobotGoalHandle> goal_handle_;
   std::mutex mutex_;
   rclcpp_action::GoalUUID preempted_goal_id_;
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
 };
 } //namespace robot_namespace
 

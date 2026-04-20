@@ -10,14 +10,16 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(robot_interfaces REQUIRED)
-find_package(nav_msgs REQUIRED)
+find_package(tf2_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rclcpp_components REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 include_directories(include)
 
 add_library(move_robot_server SHARED src/move_robot_server.cpp)
-ament_target_dependencies(move_robot_server rclcpp rclcpp_components rclcpp_action robot_interfaces nav_msgs geometry_msgs)
+ament_target_dependencies(move_robot_server rclcpp rclcpp_components rclcpp_action robot_interfaces tf2_msgs geometry_msgs tf2 tf2_ros)
 rclcpp_components_register_nodes(move_robot_server "robot_namespace::MoveRobotServerNode")
 
 add_library(move_robot_client SHARED src/move_robot_client.cpp)
