@@ -19,9 +19,8 @@ public:
 private:
   // GOAL callback
   rclcpp_action::GoalResponse
-  goal_callback(const rclcpp_action::GoalUUID &uuid,
-                std::shared_ptr<const MoveRobot::Goal> goal) {
-    (void)uuid;
+  goal_callback(const rclcpp_action::GoalUUID &uuid, std::shared_ptr<const MoveRobot::Goal> goal) {
+    (void)uuid; //avoid warning erro
     RCLCPP_INFO(this->get_logger(), "Received a new goal");
 
     // Validate new goal
@@ -29,6 +28,16 @@ private:
       RCLCPP_INFO(this->get_logger(), "Invalid position: reject goal");
       return rclcpp_action::GoalResponse::REJECT;
     }
+
+    // New goal arrived --> preempt previosly one
+    {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (goal_handle_) {
+                if (goal_handle_->is_active()) {
+                    preempted_goal_id_ = goal_handle_->get_goal_id();
+                }
+            }
+        }
 
     // Accept goal
     RCLCPP_INFO(this->get_logger(), "Accept goal");
@@ -44,8 +53,7 @@ private:
   }
 
   // handle ACCEPT goal --> execute the goal
-  void handle_accepted_callback(
-      const std::shared_ptr<MoveRobotGoalHandle> goal_handle) {
+  void handle_accepted_callback(const std::shared_ptr<MoveRobotGoalHandle> goal_handle) {
     execute_goal(goal_handle);
   }
 
@@ -57,6 +65,11 @@ private:
 
   // EXECUTE goal
   void execute_goal(const std::shared_ptr<MoveRobotGoalHandle> goal_handle) {
+    { //active goal
+      std::lock_guard<std::mutex> lock(mutex_);
+      this->goal_handle_ = goal_handle;
+    }
+
     double goal_position = goal_handle->get_goal()->position;
 
     auto result = std::make_shared<MoveRobot::Result>();
@@ -65,7 +78,17 @@ private:
 
     RCLCPP_INFO(this->get_logger(), "Execute goal");
     while (rclcpp::ok()) {
-
+      // Check if needs to preempt goal
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                if (goal_handle->get_goal_id() == preempted_goal_id_) {
+                    result->position = position_;
+                    result->message = "Preempted by another goal";
+                    goal_handle->abort(result);
+                    return;
+                }
+            }
+            
       // Check if cancel request
       if (goal_handle->is_canceling()) { // reach the position the exact moment
                                          // the cancel is sent
@@ -121,6 +144,8 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscriber_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_publisher_;
   std::shared_ptr<MoveRobotGoalHandle> goal_handle_;
+  std::mutex mutex_;
+  rclcpp_action::GoalUUID preempted_goal_id_;
 };
 } //namespace robot_namespace
 
