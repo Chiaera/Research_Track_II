@@ -8,7 +8,7 @@ class InterfaceNode(Node):
 
     def __init__(self):
         super().__init__("interface") 
-        self.publisher_ = self.create_publisher(SendUserCommand, "user_command", 10)
+        self.publisher_ = self.create_publisher(SendUserCommand, "send_command", 10)
         self.get_logger().info("Interface node has been started")
         
         thread = threading.Thread(target=self.input_loop, daemon=True)
@@ -19,30 +19,38 @@ class InterfaceNode(Node):
             #show menu
             print("Press: ")
             print(" - 'a' to insert the goal position (x, y, theta)")
-            print(" - 's' to stop the robot (cancel the goal)")
+            print(" - 's' to STOP the robot (cancel the goal)")
             print(" - 'q' to shutdown")
 
             #read input
-            cmd = input()
+            cmd = input().strip().lower()
+            self.get_logger().info(f"Pressed key: '{cmd}'")
+
+            msg = SendUserCommand()
+
             if cmd == 'q': #shutdown
-                msg = SendUserCommand()
                 msg.shutdown = True
                 self.publisher_.publish(msg)
-                break
+                self.get_logger().info("Send shutdown")
+                rclpy.shutdown()
             elif cmd == 's': #stop robot --> cancel goal
-                msg = SendUserCommand()
-                self.publisher_.publish(msg)
                 msg.cancel = True
-            else: #send goal
-                x = float(input("x = "))
-                y = float(input("y = "))
-                theta = float(input("theta = "))
-
-                msg = SendUserCommand()
-                msg.x = x
-                msg.y = y
-                msg.theta = theta
                 self.publisher_.publish(msg)
+                self.get_logger().info("Send cancelation")
+            elif cmd == 'a': #send goal
+                try: 
+                    msg.x = float(input("x = "))
+                    msg.y = float(input("y = "))
+                    msg.theta = float(input("theta = "))
+                    msg.cancel = False
+                    msg.shutdown = False
+                    self.publisher_.publish(msg)
+                    self.get_logger().info(f"Send goal with position ({msg.x, msg.y}) and rotation {msg.theta}")
+                except ValueError:
+                    print("Invalid number")
+            else:
+                print("Key NOT recognized")
+                
         
 
 def main(args=None):

@@ -129,11 +129,38 @@ private:
 
     auto result = std::make_shared<MoveRobot::Result>();
     auto feedback = std::make_shared<MoveRobot::Feedback>();
-    rclcpp::Rate loop_rate(5.0);
+    rclcpp::Rate loop_rate(3.0);
 
     RCLCPP_INFO(this->get_logger(), "Execute goal");
     while (rclcpp::ok()) {
-      //get position ---
+    // Check if needs to preempt goal
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (goal_handle->get_goal_id() == preempted_goal_id_) {
+            result->final_position_x = position_x_;
+            result->final_position_y = position_y_;
+            result->final_position_theta = position_theta_;
+            result->message = "Preempted by another goal";
+            goal_handle->abort(result);
+            return;
+        }
+    }
+          
+    // Check if cancel request
+    if (goal_handle->is_canceling()) { 
+      geometry_msgs::msg::Twist stop_msg;
+      vel_publisher_->publish(stop_msg);
+
+      result->final_position_x = position_x_;
+      result->final_position_y = position_y_;
+      result->final_position_theta = position_theta_;
+      
+      result->message = "Canceled";
+      goal_handle->canceled(result);
+      return;
+    }
+
+    //get position ---
     geometry_msgs::msg::TransformStamped transform;
     try {
         transform = tf_buffer_->lookupTransform("odom", "base_footprint", tf2::TimePointZero);
@@ -156,30 +183,6 @@ private:
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     position_theta_ = yaw;
     //---------------------
-
-      // Check if needs to preempt goal
-      {
-          std::lock_guard<std::mutex> lock(mutex_);
-          if (goal_handle->get_goal_id() == preempted_goal_id_) {
-              result->final_position_x = position_x_;
-              result->final_position_y = position_y_;
-              result->final_position_theta = position_theta_;
-              result->message = "Preempted by another goal";
-              goal_handle->abort(result);
-              return;
-          }
-      }
-            
-      // Check if cancel request
-      if (goal_handle->is_canceling()) { 
-        result->final_position_x = position_x_;
-        result->final_position_y = position_y_;
-        result->final_position_theta = position_theta_;
-        
-        result->message = "Canceled";
-        goal_handle->canceled(result);
-        return;
-      }
 
       // Check remains ditances
       double diff_x = goal_position_x - position_x_;

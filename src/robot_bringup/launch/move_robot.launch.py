@@ -31,7 +31,16 @@ def generate_launch_description():
         ]
     )
 
+    interface = Node(
+        package="pkg_py",
+        executable="interface",
+        name="interface",
+        output="screen",
+        prefix="xterm -fa 'Monospace' -fs 14 -e"
+    )
+
     ld.add_action(container)
     ld.add_action(gazebo)
+    ld.add_action(interface)
 
     return ld

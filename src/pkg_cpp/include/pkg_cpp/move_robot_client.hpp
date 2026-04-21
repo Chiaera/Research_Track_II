@@ -4,6 +4,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "robot_interfaces/action/move_robot.hpp"
+#include "robot_interfaces/msg/send_user_command.hpp"
 
 using MoveRobot = robot_interfaces::action::MoveRobot;
 using namespace std::placeholders;
@@ -16,6 +17,22 @@ public:
     MoveRobotClientNode(const rclcpp::NodeOptions &options);
 
 private:
+    void cmd_callback(const robot_interfaces::msg::SendUserCommand::SharedPtr msg){
+        if(msg->shutdown == true){
+            RCLCPP_INFO(this->get_logger(), "Shutdown");
+            rclcpp::shutdown();
+        } else if (msg->cancel == true){
+            if (goal_handle_) {
+                RCLCPP_INFO(this->get_logger(), "Send goal cancelation");
+                move_robot_client_->async_cancel_goal(goal_handle_);
+            } else {
+                RCLCPP_WARN(this->get_logger(), "No active goal to cancel");
+            }
+        } else {
+            send_goal(msg->x, msg->y, msg->theta);
+        }
+    }
+
     void send_goal(double x, double y, double theta){
         move_robot_client_->wait_for_action_server();
 
@@ -81,6 +98,7 @@ private:
 
 
     rclcpp_action::Client<MoveRobot>::SharedPtr move_robot_client_;
+    rclcpp::Subscription<robot_interfaces::msg::SendUserCommand>::SharedPtr cmd_subscriber_;
     MoveRobotGoalHandle::SharedPtr goal_handle_;
 };
 } //namespace robot_namespace
