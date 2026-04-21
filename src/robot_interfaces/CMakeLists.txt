@@ -12,6 +12,7 @@ find_package(action_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/MoveRobot.action"
+  "msg/SendUserCommand.msg"
   DEPENDENCIES action_msgs
 )
 
