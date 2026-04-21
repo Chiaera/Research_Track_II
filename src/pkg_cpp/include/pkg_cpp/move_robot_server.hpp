@@ -224,7 +224,7 @@ private:
               msg.linear.x = 0.0;
           } 
           else { //fix distance
-              msg.linear.x = 0.5*dist; 
+              msg.linear.x = 2*dist; 
               msg.angular.z = 0.0;
           }
       } else { //reached position 
