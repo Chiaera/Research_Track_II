@@ -10,7 +10,19 @@ import os
 def generate_launch_description():
     ld = LaunchDescription()
 
-    gazebo = IncludeLaunchDescription(PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('bme_gazebo_sensors'), 'launch', 'spawn_robot_ex.launch.py')))
+    gazebo = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('bme_gazebo_sensors'), 'launch', 'spawn_robot_ex.launch.py')),
+        launch_arguments={'rviz': 'false'}.items()
+    )
+
+    rviz_config_file = os.path.join(get_package_share_directory('config'), 'start_configuration.rviz')    
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2_custom',
+        arguments=['-d', rviz_config_file],
+        output='screen'
+    )
 
     container = ComposableNodeContainer(
         name="my_container",
@@ -31,7 +43,7 @@ def generate_launch_description():
         ]
     )
 
-    interface = Node(
+    interface_node = Node(
         package="pkg_py",
         executable="interface",
         name="interface",
@@ -41,6 +53,7 @@ def generate_launch_description():
 
     ld.add_action(container)
     ld.add_action(gazebo)
-    ld.add_action(interface)
+    ld.add_action(interface_node)
+    ld.add_action(rviz_node)
 
     return ld
