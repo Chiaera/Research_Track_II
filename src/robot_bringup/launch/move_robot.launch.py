@@ -15,7 +15,7 @@ def generate_launch_description():
         launch_arguments={'rviz': 'false'}.items()
     )
 
-    rviz_config_file = os.path.join(get_package_share_directory('config'), 'start_configuration.rviz')    
+    rviz_config_file = os.path.join(get_package_share_directory('robot_bringup'), 'config', 'start_configuration.rviz')    
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
