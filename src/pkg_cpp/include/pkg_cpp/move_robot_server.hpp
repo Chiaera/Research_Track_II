@@ -12,6 +12,7 @@
 #include "tf2/LinearMath/Matrix3x3.hpp"
 #include "tf2_ros/transform_listener.hpp"
 #include "tf2_ros/transform_broadcaster.hpp"
+#include "tf2_ros/static_transform_broadcaster.hpp"
 #include "tf2_ros/buffer.hpp"
 
 
@@ -66,13 +67,33 @@ private:
 
     // New goal arrived --> preempt previosly one
     {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (goal_handle_) {
-                if (goal_handle_->is_active()) {
-                    preempted_goal_id_ = goal_handle_->get_goal_id();
-                }
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (goal_handle_) {
+            if (goal_handle_->is_active()) {
+                preempted_goal_id_ = goal_handle_->get_goal_id();
             }
         }
+    }
+
+    //set target TF---
+    geometry_msgs::msg::TransformStamped target_tf;
+    target_tf.header.stamp = this->get_clock()->now();
+    target_tf.header.frame_id = "odom"; // Corretto: il goal è fisso rispetto al mondo
+    target_tf.child_frame_id = "target_goal"; 
+    target_tf.transform.translation.x = goal->goal_position_x;
+    target_tf.transform.translation.y = goal->goal_position_y;
+    target_tf.transform.translation.z = 0.0;
+    
+    //target orientation
+    tf2::Quaternion q;
+    q.setRPY(0, 0, goal->goal_position_theta);
+    target_tf.transform.rotation.x = q.x();
+    target_tf.transform.rotation.y = q.y();
+    target_tf.transform.rotation.z = q.z();
+    target_tf.transform.rotation.w = q.w();
+
+    goal_tf_broadcaster_->sendTransform(target_tf);
+    //---
 
     // Accept goal
     RCLCPP_INFO(this->get_logger(), "Accept goal");
@@ -101,18 +122,12 @@ private:
     t.header.frame_id = "odom";
     t.child_frame_id = "base_footprint";
 
-    //Get /odom pose (position and orientation) to send a broadcast
+    //Sent /odom pose (position and orientation) to broadcast
     t.transform.translation.x = msg->pose.pose.position.x;
     t.transform.translation.y = msg->pose.pose.position.y;
-    t.transform.rotation.z = msg->pose.pose.orientation.z;
-    t.transform.rotation.w = msg->pose.pose.orientation.w;
-
-    t.transform.rotation.x = msg->pose.pose.orientation.x;
-    t.transform.rotation.y = msg->pose.pose.orientation.y;
-    t.transform.rotation.z = msg->pose.pose.orientation.z;
-    t.transform.rotation.w = msg->pose.pose.orientation.w;
-
-    //publish the transformation
+    t.transform.translation.z = msg->pose.pose.position.z;
+    t.transform.rotation = msg->pose.pose.orientation;
+    
     tf_broadcaster_->sendTransform(t);
   }
 
@@ -160,7 +175,7 @@ private:
       return;
     }
 
-    //get position ---
+    //set robot TF ---
     geometry_msgs::msg::TransformStamped transform;
     try {
         transform = tf_buffer_->lookupTransform("odom", "base_footprint", tf2::TimePointZero);
@@ -264,6 +279,7 @@ private:
   rclcpp_action::GoalUUID preempted_goal_id_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+  std::unique_ptr<tf2_ros::StaticTransformBroadcaster> goal_tf_broadcaster_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
 };
 } //namespace robot_namespace
