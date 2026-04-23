@@ -9,9 +9,9 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <exec_depend>move_robot_server</exec_depend>
+  <exec_depend>pkg_cpp</exec_depend>
   <exec_depend>bme_gazebo_sensors</exec_depend>
-  <exec_depend>move_robot_client</exec_depend>
+  <exec_depend>pkg_py</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
