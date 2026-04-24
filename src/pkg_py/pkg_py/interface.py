@@ -17,7 +17,7 @@ class InterfaceNode(Node):
     def input_loop(self):
         while rclpy.ok():
             #show menu
-            print("Press: ")
+            print("\nPress: ")
             print(" - 'a' to insert the goal position (x, y, theta)")
             print(" - 's' to STOP the robot (cancel the goal)")
             print(" - 'q' to shutdown")
@@ -38,14 +38,20 @@ class InterfaceNode(Node):
                 self.publisher_.publish(msg)
                 self.get_logger().info("Send cancelation")
             elif cmd == 'a': #send goal
-                try: 
-                    msg.x = float(input("x = "))
-                    msg.y = float(input("y = "))
-                    msg.theta = float(input("theta = "))
-                    msg.cancel = False
-                    msg.shutdown = False
-                    self.publisher_.publish(msg)
-                    self.get_logger().info(f"Send goal with position ({msg.x, msg.y}) and rotation {msg.theta}")
+                try:
+                    x = float(input("x = "))
+                    y = float(input("y = "))
+                    theta = float(input("theta = "))
+                    if x < -11 or x > 11 or y < -11 or y > 11:  #check x,y are inside the world limit
+                        print("Invalid position: the world size has range [-11, 11]")
+                    else: #publish goal
+                        msg.x = x
+                        msg.y = y
+                        msg.theta = theta
+                        msg.cancel = False
+                        msg.shutdown = False
+                        self.publisher_.publish(msg)
+                        self.get_logger().info(f"Send goal with position ({msg.x}, {msg.y}) and rotation {msg.theta}")
                 except ValueError:
                     print("Invalid number")
             else:

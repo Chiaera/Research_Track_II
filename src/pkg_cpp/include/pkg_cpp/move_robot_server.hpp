@@ -59,13 +59,13 @@ private:
     (void)uuid; //avoid warning erro
     RCLCPP_INFO(this->get_logger(), "Received a new goal");
 
-    // Validate new goal
-    if ((goal->goal_position_x < 0) || (goal->goal_position_x > 100) || (goal->goal_position_y < 0) || (goal->goal_position_y > 100)) {
-      RCLCPP_INFO(this->get_logger(), "Invalid position: reject goal");
-      return rclcpp_action::GoalResponse::REJECT;
+    //Validate new goal - to limit the world
+    if (goal->goal_position_x < -11 || goal->goal_position_x > 11 || goal->goal_position_y < -11 || goal->goal_position_y > 11) {
+        RCLCPP_INFO(this->get_logger(), "Invalid position: reject goal");
+        return rclcpp_action::GoalResponse::REJECT;
     }
 
-    // New goal arrived --> preempt previosly one
+    //New goal arrived --> preempt previosly one
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (goal_handle_) {
