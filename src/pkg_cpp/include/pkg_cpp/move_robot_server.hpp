@@ -118,7 +118,7 @@ private:
     geometry_msgs::msg::TransformStamped t;
 
     //assign header and child frame 
-    t.header.stamp = this->get_clock()->now();
+    t.header.stamp = msg->header.stamp;
     t.header.frame_id = "odom";
     t.child_frame_id = "base_footprint";
 
