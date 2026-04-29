@@ -42,7 +42,7 @@ float64 current_position_theta
 ```
 
 ### Message — `SendUserCommand.msg`
-Message is used to comunicate between interface and client, it implements the variable for the goal position **(x, y, theta)** and a boolean flags to send the cancel or abort messages.
+Message is used to communicate between interface and client, it implements the variable for the goal position **(x, y, theta)** and a boolean flags to send the cancel or abort messages.
 
 ```
 float64 x
@@ -90,7 +90,7 @@ colcon build
 source install/setup.bash
 ```
 
-## Package Structure
+### Package Structure
 Before execute the file, make sure your workspace follows this structure:
 ```
 ├── build/
@@ -115,12 +115,24 @@ Before execute the file, make sure your workspace follows this structure:
         └── config/start_configuration.rviz
 ```
 
-## Execution
+### Execution
 Launch the full simulation and interface window:
 ```bash
 ros2 launch robot_bringup move_robot.launch.py
 ```
 **Note:** This launch file automatically suppresses the default RViz configuration from the `bme_gazebo_sensors` package to load the custom `start_configuration.rviz` located in `robot_bringup/config`.
 
+---
+
 ## Usage
-Once launched, an xterm window will open. Follow the on-screen instructions to enter coordinates *(x,y,θ)*. You can **cancel** or **preempt** (send a new goal) at any time.
+Once launched, an xterm window will open with the following menu:
+```bash
+Press:
+- 'a' to insert the goal position (x, y, theta)
+- 's' to STOP the robot (cancel the goal)
+- 'q' to shutdown
+```
+Where:
+- **`a`** you can enter **x**, **y** and **theta** coordinates, it is considered a valid range of `[-11, 11]` for both x and y. Sending a **new goal while one is active** automatically preempts the previous one.
+- **`s`** you can stop the robot immediately (**canceling** the current goal)
+- **`q`**: shutdown all nodes (**abort** the goal)
