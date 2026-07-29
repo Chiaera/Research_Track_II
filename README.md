@@ -1,4 +1,4 @@
-# Research Track II - ASSIGNMENT
+# ROS2 Goal-Oriented Robot Navigation (Actions and TF2)
 
 ## Overview
 
